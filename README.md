@@ -2,7 +2,7 @@
 
 so I dual boot Ubuntu and Windows on my laptop and every time I log into Windows the clock is wrong. turns out Ubuntu stores the hardware clock in UTC but Windows expects local time — they basically disagree on how to read the clock.
 
-the usual fix is going into date & time settings and hitting the sync button manually. got tired of doing that every single time so I wrote this script to handle it automatically on login.
+the usual fix is going into date & time settings and hitting the sync  button manually. got tired of doing that every single time so I wrote this script to handle it automatically on login.
 
 ---
 
