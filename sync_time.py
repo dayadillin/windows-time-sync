@@ -7,12 +7,13 @@
 # Instead of manually clicking the sync button every single time,
 # I wrote this script to do it automatically on login via Task Scheduler.
 #
-# Needs to run as Administrator (set that in the Task Scheduler config).
+# Requests admin elevation on its own if not already running as admin.
 
 import subprocess
 import sys
 import ctypes
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -23,11 +24,19 @@ LOG_MAX_LINES = 200  # don't let the log file grow forever
 
 
 def is_admin():
-    # w32tm /resync needs admin rights, so check before doing anything
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
     except Exception:
         return False
+
+
+def elevate():
+    # re-launch this script as admin using the runas verb
+    # this triggers the UAC prompt so Windows asks for permission
+    ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", sys.executable, " ".join([f'"{sys.argv[0]}"'] + sys.argv[1:]), None, 0
+    )
+    sys.exit(0)
 
 
 def trim_log(path: Path, max_lines: int):
@@ -42,6 +51,11 @@ def trim_log(path: Path, max_lines: int):
 
 
 def sync_time():
+    # if not admin, re-launch with elevation and exit this instance
+    if not is_admin():
+        elevate()
+        return
+
     logging.basicConfig(
         filename=str(LOG_FILE),
         level=logging.INFO,
@@ -52,15 +66,14 @@ def sync_time():
     trim_log(LOG_FILE, LOG_MAX_LINES)
     logging.info("--- sync started ---")
 
-    if not is_admin():
-        logging.error("not running as admin, aborting")
-        sys.exit(1)
+    # register w32tm just in case (harmless if already registered)
+    subprocess.run(["w32tm", "/register"], capture_output=True, text=True)
 
     # make sure the Windows Time service is actually running
     subprocess.run(["net", "start", "w32tm"], capture_output=True, text=True)
 
-    # register w32tm just in case (harmless if already registered)
-    subprocess.run(["w32tm", "/register"], capture_output=True, text=True)
+    # wait a moment for the service to fully start before syncing
+    time.sleep(3)
 
     # the actual sync
     result = subprocess.run(
